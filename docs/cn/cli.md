@@ -20,6 +20,11 @@ $PYTHON = "runtime\python.exe"  # 项目内置 Python
 & $PYTHON --version
 ```
 
+> 训练脚本内部使用 `from infer.…`、`from train.…` 的包内绝对导入，因此必须用
+> `python -m 模块路径` 启动（下面的命令已经这样写）。直接执行 `python train\preprocess.py`
+> 会报 `ModuleNotFoundError: No module named 'infer'`，设置 `PYTHONPATH` 又会因 `train\train.py`
+> 抢占包名而报循环导入。
+
 ## 单说话人与多说话人的关系
 
 模型训练核心始终包含说话人 ID 嵌入，因此从模型结构角度看，多说话人训练覆盖单说话人场景。只含一个 ID 的多说话人清单也可以训练。
@@ -44,7 +49,7 @@ $PYTHON = "runtime\python.exe"  # 项目内置 Python
 ### 单说话人数据切分
 
 ```powershell
-& $PYTHON train\preprocess.py "训练集目录" 40000 8 "logs\实验名" False 3.7
+& $PYTHON -m train.preprocess "训练集目录" 40000 8 "logs\实验名" False 3.7
 ```
 
 参数依次为输入目录、采样率、进程数、实验目录、是否关闭多进程、切分参数。
@@ -56,7 +61,7 @@ $PYTHON = "runtime\python.exe"  # 项目内置 Python
 ```powershell
 & $PYTHON -c "from tools.multispeaker import build_manifest_from_root,write_manifest; write_manifest(r'logs\实验名',build_manifest_from_root(r'训练集总目录'))"
 
-& $PYTHON train\preprocess.py "" 40000 8 "logs\实验名" False 3.7 "logs\实验名\multispeaker_manifest.json"
+& $PYTHON -m train.preprocess "" 40000 8 "logs\实验名" False 3.7 "logs\实验名\multispeaker_manifest.json"
 ```
 
 重复次数只在最终 `filelist.txt` 中重复训练记录，不会重复执行切分、F0 或 HuBERT 特征提取。
@@ -66,19 +71,19 @@ $PYTHON = "runtime\python.exe"  # 项目内置 Python
 CPU + PM：
 
 ```powershell
-& $PYTHON train\dataset\extract_f0.py cpu "logs\实验名" 8 pm
+& $PYTHON -m train.dataset.extract_f0 cpu "logs\实验名" 8 pm
 ```
 
 CPU + RMVPE：
 
 ```powershell
-& $PYTHON train\dataset\extract_f0.py cpu "logs\实验名" 8 rmvpe
+& $PYTHON -m train.dataset.extract_f0 cpu "logs\实验名" 8 rmvpe
 ```
 
 CUDA + RMVPE：
 
 ```powershell
-& $PYTHON train\dataset\extract_f0.py cuda 1 0 0 "logs\实验名" true
+& $PYTHON -m train.dataset.extract_f0 cuda 1 0 0 "logs\实验名" true
 ```
 
 CUDA 参数依次为总进程数、当前进程序号、GPU ID、实验目录和半精度开关。多个进程需要分别启动不同的当前进程序号。
@@ -86,7 +91,7 @@ CUDA 参数依次为总进程数、当前进程序号、GPU ID、实验目录和
 DirectML + RMVPE：
 
 ```powershell
-& $PYTHON train\dataset\extract_f0.py dml "logs\实验名"
+& $PYTHON -m train.dataset.extract_f0 dml "logs\实验名"
 ```
 
 ### HuBERT 特征提取
@@ -94,19 +99,19 @@ DirectML + RMVPE：
 CUDA：
 
 ```powershell
-& $PYTHON train\dataset\extract_hubert_feature.py cuda:0 1 0 0 "logs\实验名" v2 true
+& $PYTHON -m train.dataset.extract_hubert_feature cuda:0 1 0 0 "logs\实验名" v2 true
 ```
 
 CPU：
 
 ```powershell
-& $PYTHON train\dataset\extract_hubert_feature.py cpu 1 0 "logs\实验名" v2 false
+& $PYTHON -m train.dataset.extract_hubert_feature cpu 1 0 "logs\实验名" v2 false
 ```
 
 DirectML：
 
 ```powershell
-& $PYTHON train\dataset\extract_hubert_feature.py privateuseone:0 1 0 "logs\实验名" v2 false
+& $PYTHON -m train.dataset.extract_hubert_feature privateuseone:0 1 0 "logs\实验名" v2 false
 ```
 
 ### 准备 `config.json` 和 `filelist.txt`
@@ -149,7 +154,7 @@ WebUI 的“训练模型”和“一键训练”会自动生成这两个文件�
 ### 模型训练
 
 ```powershell
-& $PYTHON train\train.py -e "实验名" -sr 40k -f0 1 -bs 8 -g 0 -te 200 -se 5 -pg assets\pretrained_v2\f0G40k.pth -pd assets\pretrained_v2\f0D40k.pth -l 0 -c 0 -sw 1 -v v2
+& $PYTHON -m train.train -e "实验名" -sr 40k -f0 1 -bs 8 -g 0 -te 200 -se 5 -pg assets\pretrained_v2\f0G40k.pth -pd assets\pretrained_v2\f0D40k.pth -l 0 -c 0 -sw 1 -v v2
 ```
 
 常用参数：
@@ -173,13 +178,13 @@ WebUI 的“训练模型”和“一键训练”会自动生成这两个文件�
 单说话人：
 
 ```powershell
-& $PYTHON train\train_index.py "实验名" v2 "assets\indices" 8 single
+& $PYTHON -m train.train_index "实验名" v2 "assets\indices" 8 single
 ```
 
 多说话人：
 
 ```powershell
-& $PYTHON train\train_index.py "实验名" v2 "assets\indices" 8 multi
+& $PYTHON -m train.train_index "实验名" v2 "assets\indices" 8 multi
 ```
 
 多说话人模式不是把所有人的特征混成一个索引。脚本会按说话人 ID 分组，为每个说话人分别生成 `total_fea_spkid<ID>.npy`、`trained_..._spkid<ID>.index` 和 `added_..._spkid<ID>.index`。因此模型中每个说话人都有自己的一份索引；推理选择说话人后，应使用该 ID 对应的 added 索引。
@@ -187,7 +192,7 @@ WebUI 的“训练模型”和“一键训练”会自动生成这两个文件�
 自动按 manifest 判断：
 
 ```powershell
-& $PYTHON train\train_index.py "实验名" v2 "assets\indices" 8 auto
+& $PYTHON -m train.train_index "实验名" v2 "assets\indices" 8 auto
 ```
 
 ## 离线推理 CLI

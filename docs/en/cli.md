@@ -20,6 +20,12 @@ $PYTHON = "runtime\python.exe"  # Bundled Python
 & $PYTHON --version
 ```
 
+> The training scripts use absolute package imports (`from infer.…`, `from train.…`), so they
+> must be started as `python -m <module>` (the commands below already do this). Running
+> `python train\preprocess.py` directly raises `ModuleNotFoundError: No module named 'infer'`,
+> and adding `PYTHONPATH` instead fails with a circular import because `train\train.py`
+> shadows the `train` package.
+
 ## Single-speaker and multi-speaker relationship
 
 The training architecture always includes a speaker-ID embedding. At the model level, multi-speaker training therefore includes the single-speaker case, and a multi-speaker manifest containing only one ID is valid.
@@ -44,7 +50,7 @@ The stages are dataset preprocessing, F0 extraction, HuBERT feature extraction, 
 ### Single-speaker preprocessing
 
 ```powershell
-& $PYTHON train\preprocess.py "DATASET_DIRECTORY" 40000 8 "logs\EXPERIMENT" False 3.7
+& $PYTHON -m train.preprocess "DATASET_DIRECTORY" 40000 8 "logs\EXPERIMENT" False 3.7
 ```
 
 The arguments are input directory, sample rate, worker count, experiment directory, disable-multiprocessing flag, and slicing parameter.
@@ -56,7 +62,7 @@ Subdirectory names use `Name_ID_Repeat`, and IDs range from `0` through `109`.
 ```powershell
 & $PYTHON -c "from tools.multispeaker import build_manifest_from_root,write_manifest; write_manifest(r'logs\EXPERIMENT',build_manifest_from_root(r'DATASET_ROOT'))"
 
-& $PYTHON train\preprocess.py "" 40000 8 "logs\EXPERIMENT" False 3.7 "logs\EXPERIMENT\multispeaker_manifest.json"
+& $PYTHON -m train.preprocess "" 40000 8 "logs\EXPERIMENT" False 3.7 "logs\EXPERIMENT\multispeaker_manifest.json"
 ```
 
 The repeat count duplicates final `filelist.txt` records only. Preprocessing, F0 extraction, and HuBERT extraction are not repeated.
@@ -66,19 +72,19 @@ The repeat count duplicates final `filelist.txt` records only. Preprocessing, F0
 CPU with PM:
 
 ```powershell
-& $PYTHON train\dataset\extract_f0.py cpu "logs\EXPERIMENT" 8 pm
+& $PYTHON -m train.dataset.extract_f0 cpu "logs\EXPERIMENT" 8 pm
 ```
 
 CPU with RMVPE:
 
 ```powershell
-& $PYTHON train\dataset\extract_f0.py cpu "logs\EXPERIMENT" 8 rmvpe
+& $PYTHON -m train.dataset.extract_f0 cpu "logs\EXPERIMENT" 8 rmvpe
 ```
 
 CUDA with RMVPE:
 
 ```powershell
-& $PYTHON train\dataset\extract_f0.py cuda 1 0 0 "logs\EXPERIMENT" true
+& $PYTHON -m train.dataset.extract_f0 cuda 1 0 0 "logs\EXPERIMENT" true
 ```
 
 The CUDA arguments are total process count, current process index, GPU ID, experiment directory, and half-precision flag. Start one command for each process index when using several processes.
@@ -86,7 +92,7 @@ The CUDA arguments are total process count, current process index, GPU ID, exper
 DirectML with RMVPE:
 
 ```powershell
-& $PYTHON train\dataset\extract_f0.py dml "logs\EXPERIMENT"
+& $PYTHON -m train.dataset.extract_f0 dml "logs\EXPERIMENT"
 ```
 
 ### HuBERT feature extraction
@@ -94,19 +100,19 @@ DirectML with RMVPE:
 CUDA:
 
 ```powershell
-& $PYTHON train\dataset\extract_hubert_feature.py cuda:0 1 0 0 "logs\EXPERIMENT" v2 true
+& $PYTHON -m train.dataset.extract_hubert_feature cuda:0 1 0 0 "logs\EXPERIMENT" v2 true
 ```
 
 CPU:
 
 ```powershell
-& $PYTHON train\dataset\extract_hubert_feature.py cpu 1 0 "logs\EXPERIMENT" v2 false
+& $PYTHON -m train.dataset.extract_hubert_feature cpu 1 0 "logs\EXPERIMENT" v2 false
 ```
 
 DirectML:
 
 ```powershell
-& $PYTHON train\dataset\extract_hubert_feature.py privateuseone:0 1 0 "logs\EXPERIMENT" v2 false
+& $PYTHON -m train.dataset.extract_hubert_feature privateuseone:0 1 0 "logs\EXPERIMENT" v2 false
 ```
 
 ### Prepare `config.json` and `filelist.txt`
@@ -149,7 +155,7 @@ The WebUI Model Training and One-click Training actions generate both files auto
 ### Model training
 
 ```powershell
-& $PYTHON train\train.py -e "EXPERIMENT" -sr 40k -f0 1 -bs 8 -g 0 -te 200 -se 5 -pg assets\pretrained_v2\f0G40k.pth -pd assets\pretrained_v2\f0D40k.pth -l 0 -c 0 -sw 1 -v v2
+& $PYTHON -m train.train -e "EXPERIMENT" -sr 40k -f0 1 -bs 8 -g 0 -te 200 -se 5 -pg assets\pretrained_v2\f0G40k.pth -pd assets\pretrained_v2\f0D40k.pth -l 0 -c 0 -sw 1 -v v2
 ```
 
 Common options:
@@ -173,13 +179,13 @@ Common options:
 Single-speaker:
 
 ```powershell
-& $PYTHON train\train_index.py "EXPERIMENT" v2 "assets\indices" 8 single
+& $PYTHON -m train.train_index "EXPERIMENT" v2 "assets\indices" 8 single
 ```
 
 Multi-speaker:
 
 ```powershell
-& $PYTHON train\train_index.py "EXPERIMENT" v2 "assets\indices" 8 multi
+& $PYTHON -m train.train_index "EXPERIMENT" v2 "assets\indices" 8 multi
 ```
 
 Multi-speaker mode does not merge every speaker's features into one index. The script groups features by speaker ID and separately creates `total_fea_spkid<ID>.npy`, `trained_..._spkid<ID>.index`, and `added_..._spkid<ID>.index` for each speaker. Every speaker in the model therefore has its own index; after selecting a speaker for inference, use the added index for that ID.
@@ -187,7 +193,7 @@ Multi-speaker mode does not merge every speaker's features into one index. The s
 Automatic manifest detection:
 
 ```powershell
-& $PYTHON train\train_index.py "EXPERIMENT" v2 "assets\indices" 8 auto
+& $PYTHON -m train.train_index "EXPERIMENT" v2 "assets\indices" 8 auto
 ```
 
 ## Offline inference CLI
